@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import useSWR from 'swr';
-import { fetcher, buildUrl, buildThumbnailUrl, getImageUrl } from '@/lib/api';
+import { fetcher, buildUrl, buildThumbnailUrl, getImageUrl, getApiUrl } from '@/lib/api';
 import type { KemonoPostResponse, KemonoAttachmentExtended, KemonoPreview } from '@/types';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -220,7 +220,7 @@ export default function Post() {
     const [imageLoadStates, setImageLoadStates] = useState<Record<number, boolean>>({});
 
     const { data: rawData, error, isLoading } = useSWR<KemonoPostResponse>(
-        service && user && id ? `/api/v1/${service}/user/${user}/post/${id}` : null,
+        service && user && id ? getApiUrl(`/${service}/user/${user}/post/${id}`) : null,
         fetcher
     );
 

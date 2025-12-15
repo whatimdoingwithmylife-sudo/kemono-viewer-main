@@ -1,4 +1,19 @@
-export const KEMONO_API_URL = '/api/v1'; // We will use Vite proxy to avoid CORS
+import { buildProxiedUrl } from '@/hooks/useSettings';
+
+// Use Vite proxy in dev, CORS proxy in production (GitHub Pages)
+const isDev = import.meta.env.DEV;
+const KEMONO_BASE = 'https://kemono.cr';
+
+// Dynamic API URL getter - uses selected CORS proxy in production
+export const getApiUrl = (endpoint: string): string => {
+    if (isDev) {
+        return `/api/v1${endpoint}`;
+    }
+    return buildProxiedUrl(`${KEMONO_BASE}/api/v1${endpoint}`);
+};
+
+// Legacy export for backwards compatibility (base URL without endpoint)
+export const KEMONO_API_URL = isDev ? '/api/v1' : buildProxiedUrl(`${KEMONO_BASE}/api/v1`);
 
 // Rate limiting helper
 let lastRequestTime = 0;

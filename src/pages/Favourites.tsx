@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import useSWR from 'swr';
-import { fetcher } from '@/lib/api';
+import { fetcher, getApiUrl } from '@/lib/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ export default function Favourites() {
     
     const { data: postsData, isLoading: postsLoading } = useSWR(
         limitedFavourites.length > 0 && activeTab === 'feed'
-            ? limitedFavourites.map(f => `/api/v1/${f.service}/user/${f.id}/posts?o=0`)
+            ? limitedFavourites.map(f => getApiUrl(`/${f.service}/user/${f.id}/posts?o=0`))
             : null,
         async (urls: string[]) => {
             const results = await Promise.all(

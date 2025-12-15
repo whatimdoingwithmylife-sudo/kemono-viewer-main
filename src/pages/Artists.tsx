@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { fetcher } from '@/lib/api';
+import { fetcher, getApiUrl } from '@/lib/api';
 import type { KemonoCreator } from '@/types';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +34,7 @@ export default function Artists() {
     const [page, setPage] = useState(0);
 
     const { data: creators, error, isLoading } = useSWR<KemonoCreator[]>(
-        '/api/v1/creators',
+        getApiUrl('/creators'),
         fetcher
     );
 

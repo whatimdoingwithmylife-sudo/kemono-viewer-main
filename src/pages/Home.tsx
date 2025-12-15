@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { fetcher } from '@/lib/api';
+import { fetcher, getApiUrl } from '@/lib/api';
 import type { KemonoPost } from '@/types';
 import { Button } from '@/components/ui/button';
 import { useSearchParams } from 'react-router-dom';
@@ -37,7 +37,7 @@ export default function Home() {
         localStorage.setItem('postsViewMode', mode);
     };
 
-    const apiUrl = `/api/v1/posts?${query ? `q=${query}&` : ''}o=${offset}`;
+    const apiUrl = getApiUrl(`/posts?${query ? `q=${query}&` : ''}o=${offset}`);
     const { data: rawData, error, isLoading } = useSWR<any>(apiUrl, fetcher);
     const posts: KemonoPost[] | undefined = Array.isArray(rawData) ? rawData : rawData?.posts;
 

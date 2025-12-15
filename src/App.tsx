@@ -6,6 +6,7 @@ import Creator from '@/pages/Creator';
 import Post from '@/pages/Post';
 import Artists from '@/pages/Artists';
 import Favourites from '@/pages/Favourites';
+import Settings from '@/pages/Settings';
 import { Layout } from '@/components/layout/Layout';
 
 // Scroll to top on forward navigation, preserve on back
@@ -35,6 +36,7 @@ function App() {
             <Route path="/favourites" element={<Favourites />} />
             <Route path="/creator/:service/:id" element={<Creator />} />
             <Route path="/post/:service/:user/:id" element={<Post />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </Layout>
       </Router>

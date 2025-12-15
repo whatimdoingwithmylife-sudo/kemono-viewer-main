@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import useSWR from 'swr';
-import { fetcher } from '@/lib/api';
+import { fetcher, getApiUrl } from '@/lib/api';
 import type { KemonoPost, KemonoCreator } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,14 +34,14 @@ export default function Creator() {
         localStorage.setItem('postsViewMode', mode);
     };
 
-    const { data: creatorInfo } = useSWR<KemonoCreator[]>('/api/v1/creators', fetcher);
+    const { data: creatorInfo } = useSWR<KemonoCreator[]>(getApiUrl('/creators'), fetcher);
     const creator = creatorInfo?.find(c => c.service === service && c.id === id);
 
     const { isFavourite, toggleFavourite } = useFavourites();
     const isCreatorFavourite = service && id ? isFavourite(service, id) : false;
 
     const { data: rawData, error, isLoading } = useSWR<any>(
-        service && id ? `/api/v1/${service}/user/${id}/posts?o=${offset}` : null,
+        service && id ? getApiUrl(`/${service}/user/${id}/posts?o=${offset}`) : null,
         fetcher
     );
     const posts: KemonoPost[] | undefined = Array.isArray(rawData) ? rawData : rawData?.posts;
