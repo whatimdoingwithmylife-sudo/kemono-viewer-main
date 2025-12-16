@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from 'react-router-dom';
-import type { KemonoPost } from '@/types';
+import type { KemonoPost, KemonoCreator } from '@/types';
 import { getThumbnailUrl } from '@/lib/api';
 
 interface PostCardProps {
     post: KemonoPost;
+    creator?: KemonoCreator;
 }
 
-export function PostCard({ post }: PostCardProps) {
+export function PostCard({ post, creator }: PostCardProps) {
     const [imageLoaded, setImageLoaded] = useState(false);
     const [imageError, setImageError] = useState(false);
 
@@ -158,8 +160,24 @@ export function PostCard({ post }: PostCardProps) {
                         <p className="text-sm text-muted-foreground line-clamp-1 mt-1">{textContent}</p>
                     )}
 
-                    <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                        <span>{formatRelativeTime(post.published)}</span>
+                    <div className="flex items-center gap-2 mt-2">
+                        <Link 
+                            to={`/creator/${post.service}/${post.user}`} 
+                            className="flex items-center gap-1.5 hover:text-primary transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <Avatar className="h-5 w-5">
+                                <AvatarImage src={`https://img.kemono.cr/icons/${post.service}/${post.user}`} />
+                                <AvatarFallback className="text-[10px]">
+                                    {creator?.name?.charAt(0).toUpperCase() || '?'}
+                                </AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs text-muted-foreground truncate max-w-[100px]">
+                                {creator?.name || 'Unknown'}
+                            </span>
+                        </Link>
+                        <span className="text-xs text-muted-foreground">•</span>
+                        <span className="text-xs text-muted-foreground">{formatRelativeTime(post.published)}</span>
                     </div>
                 </div>
             </Card>

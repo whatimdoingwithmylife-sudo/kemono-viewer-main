@@ -1,11 +1,19 @@
 import { useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import useSWR from 'swr';
 import { fetcher, getApiUrl } from '@/lib/api';
-import type { KemonoPost, KemonoCreator } from '@/types';
+import type { KemonoPost, KemonoCreator, KemonoRecommendedCreator } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+    Carousel,
+    CarouselContent,
+    CarouselItem,
+    CarouselNext,
+    CarouselPrevious,
+} from '@/components/ui/carousel';
 import { FilterBar, defaultFilters } from '@/components/kemono/FilterBar';
 import type { FilterState } from '@/components/kemono/FilterBar';
 import { ViewToggle } from '@/components/kemono/ViewToggle';
@@ -62,7 +70,7 @@ export default function Creator() {
             {/* Creator Header */}
             <div className="flex items-start gap-4 pb-4 border-b">
                 <Avatar className="h-16 w-16">
-                    <AvatarImage src={`https://img.kemono.su/icons/${service}/${id}`} />
+                    <AvatarImage src={`https://img.kemono.cr/icons/${service}/${id}`} />
                     <AvatarFallback className="text-lg">
                         {creator?.name?.charAt(0).toUpperCase() || '?'}
                     </AvatarFallback>
@@ -87,6 +95,9 @@ export default function Creator() {
                     />
                 )}
             </div>
+
+            {/* Similar Creators - in header area */}
+            {service && id && <SimilarCreators service={service} userId={id} />}
 
             {/* Filters */}
             <div className="flex flex-col gap-4">
@@ -115,6 +126,70 @@ export default function Creator() {
                     </Button>
                 </div>
             )}
+        </div>
+    );
+}
+
+// Component to show similar/recommended creators with carousel
+function SimilarCreators({ service, userId }: { service: string; userId: string }) {
+    const { data: recommended } = useSWR<KemonoRecommendedCreator[]>(
+        service && userId ? getApiUrl(`/${service}/user/${userId}/recommended`) : null,
+        fetcher
+    );
+
+    if (!recommended || recommended.length === 0) return null;
+
+    const topRecommended = recommended.slice(0, 12);
+
+    return (
+        <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                Similar Creators
+            </h3>
+            <Carousel
+                opts={{
+                    align: 'start',
+                }}
+                className="w-full"
+            >
+                <CarouselContent className="-ml-2 md:-ml-4">
+                    {topRecommended.map(creator => (
+                        <CarouselItem key={`${creator.service}-${creator.id}`} className="pl-2 md:pl-4 basis-1/2 sm:basis-1/3 md:basis-1/4 lg:basis-1/5">
+                            <Link to={`/creator/${creator.service}/${creator.id}`}>
+                                <Card className="hover:bg-accent/50 transition-all h-full">
+                                    <CardContent className="flex flex-col items-center gap-2 p-4">
+                                        <Avatar className="h-12 w-12">
+                                            <AvatarImage
+                                                src={`https://img.kemono.cr/icons/${creator.service}/${creator.id}`}
+                                                alt={creator.name}
+                                            />
+                                            <AvatarFallback>
+                                                {creator.name?.charAt(0).toUpperCase() || '?'}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="text-center min-w-0 w-full">
+                                            <p className="font-medium text-sm truncate">
+                                                {creator.name}
+                                            </p>
+                                            <Badge variant="secondary" className="text-xs capitalize mt-1">
+                                                {creator.service}
+                                            </Badge>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </Link>
+                        </CarouselItem>
+                    ))}
+                </CarouselContent>
+                <CarouselPrevious className="hidden md:flex" />
+                <CarouselNext className="hidden md:flex" />
+            </Carousel>
         </div>
     );
 }

@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from 'react-router-dom';
-import type { KemonoPost } from '@/types';
+import type { KemonoPost, KemonoCreator } from '@/types';
 import { getThumbnailUrl } from '@/lib/api';
 
 interface PostListItemProps {
     post: KemonoPost;
+    creator?: KemonoCreator;
 }
 
-export function PostListItem({ post }: PostListItemProps) {
+export function PostListItem({ post, creator }: PostListItemProps) {
     const [imageLoaded, setImageLoaded] = useState(false);
     const [imageError, setImageError] = useState(false);
 
@@ -113,6 +115,21 @@ export function PostListItem({ post }: PostListItemProps) {
                         )}
                     </div>
                     <div className="flex items-center gap-1.5 sm:gap-2 mt-1 sm:mt-2 flex-wrap">
+                        <Link 
+                            to={`/creator/${post.service}/${post.user}`} 
+                            className="flex items-center gap-1.5 hover:text-primary transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <Avatar className="h-5 w-5">
+                                <AvatarImage src={`https://img.kemono.cr/icons/${post.service}/${post.user}`} />
+                                <AvatarFallback className="text-[10px]">
+                                    {creator?.name?.charAt(0).toUpperCase() || '?'}
+                                </AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs text-muted-foreground truncate max-w-[80px] sm:max-w-[120px]">
+                                {creator?.name || 'Unknown'}
+                            </span>
+                        </Link>
                         <Badge variant="secondary" className="text-xs capitalize">
                             {post.service}
                         </Badge>

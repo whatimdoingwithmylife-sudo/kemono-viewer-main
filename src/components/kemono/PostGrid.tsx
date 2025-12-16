@@ -1,8 +1,10 @@
-import type { KemonoPost } from '@/types';
+import useSWR from 'swr';
+import type { KemonoPost, KemonoCreator } from '@/types';
 import type { ViewMode } from './ViewToggle';
 import { PostCard } from './PostCard';
 import { PostListItem } from './PostListItem';
 import { Skeleton } from '@/components/ui/skeleton';
+import { fetcher, getApiUrl } from '@/lib/api';
 
 interface PostGridProps {
     posts: KemonoPost[];
@@ -13,6 +15,16 @@ interface PostGridProps {
 }
 
 export function PostGrid({ posts, viewMode, isLoading, emptyMessage = 'No posts found.', keyPrefix = '' }: PostGridProps) {
+    // Fetch all creators to get names
+    const { data: creators } = useSWR<KemonoCreator[]>(getApiUrl('/creators'), fetcher);
+    
+    // Create a lookup map for quick access
+    const creatorMap = new Map<string, KemonoCreator>();
+    creators?.forEach(c => {
+        creatorMap.set(`${c.service}-${c.id}`, c);
+    });
+    
+    const getCreator = (post: KemonoPost) => creatorMap.get(`${post.service}-${post.user}`);
     if (isLoading) {
         return (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -41,7 +53,7 @@ export function PostGrid({ posts, viewMode, isLoading, emptyMessage = 'No posts 
         return (
             <div className="flex flex-col gap-3">
                 {posts.map((post) => (
-                    <PostListItem key={`${keyPrefix}${post.service}-${post.user}-${post.id}`} post={post} />
+                    <PostListItem key={`${keyPrefix}${post.service}-${post.user}-${post.id}`} post={post} creator={getCreator(post)} />
                 ))}
             </div>
         );
@@ -50,7 +62,7 @@ export function PostGrid({ posts, viewMode, isLoading, emptyMessage = 'No posts 
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {posts.map((post) => (
-                <PostCard key={`${keyPrefix}${post.service}-${post.user}-${post.id}`} post={post} />
+                <PostCard key={`${keyPrefix}${post.service}-${post.user}-${post.id}`} post={post} creator={getCreator(post)} />
             ))}
         </div>
     );

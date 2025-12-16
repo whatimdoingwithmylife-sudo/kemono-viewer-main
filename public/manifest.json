@@ -1,0 +1,17 @@
+{
+  "name": "Kemono Viewer",
+  "short_name": "Kemono",
+  "description": "A modern viewer for browsing Kemono content",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0a0a0b",
+  "theme_color": "#8b5cf6",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

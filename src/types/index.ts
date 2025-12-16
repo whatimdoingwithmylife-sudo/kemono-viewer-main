@@ -75,3 +75,14 @@ export interface KemonoCreator {
     indexed: number;
     updated: number;
 }
+
+export interface KemonoRecommendedCreator {
+    id: string;
+    name: string;
+    service: string;
+    indexed: string;
+    updated: string;
+    public_id: string | null;
+    relation_id: string | null;
+    score: number;
+}

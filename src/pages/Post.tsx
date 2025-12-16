@@ -2,13 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import useSWR from 'swr';
 import { fetcher, buildUrl, buildThumbnailUrl, getImageUrl, getApiUrl } from '@/lib/api';
-import type { KemonoPostResponse, KemonoAttachmentExtended, KemonoPreview } from '@/types';
+import type { KemonoPostResponse, KemonoAttachmentExtended, KemonoPreview, KemonoCreator, KemonoPost, KemonoRecommendedCreator } from '@/types';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { MiniPostCard } from '@/components/kemono/MiniPostCard';
 import {
   Image as ImageIcon,
   ZoomIn,
@@ -224,6 +225,13 @@ export default function Post() {
         fetcher
     );
 
+    // Fetch creator info to get the name
+    const { data: creatorInfo } = useSWR<KemonoCreator[]>(
+        getApiUrl('/creators'),
+        fetcher
+    );
+    const creator = creatorInfo?.find(c => c.service === service && c.id === user);
+
     // Extract post and extended info from the response
     const post = rawData?.post;
     const extendedAttachments = rawData?.attachments || [];
@@ -356,11 +364,11 @@ export default function Post() {
                         <Link to={`/creator/${post.service}/${post.user}`}>
                             <Avatar className="h-14 w-14 ring-2 ring-primary/20 hover:ring-primary/50 transition-all">
                                 <AvatarImage
-                                    src={`https://img.kemono.su/icons/${post.service}/${post.user}`}
-                                    alt="Creator"
+                                    src={`https://img.kemono.cr/icons/${post.service}/${post.user}`}
+                                    alt={creator?.name || 'Creator'}
                                 />
                                 <AvatarFallback className="text-lg font-bold bg-gradient-to-br from-primary/20 to-primary/5">
-                                    {post.service.charAt(0).toUpperCase()}
+                                    {creator?.name?.charAt(0).toUpperCase() || post.service.charAt(0).toUpperCase()}
                                 </AvatarFallback>
                             </Avatar>
                         </Link>
@@ -369,15 +377,17 @@ export default function Post() {
                                 to={`/creator/${post.service}/${post.user}`}
                                 className="font-semibold text-lg hover:text-primary transition-colors"
                             >
-                                View Creator Profile
+                                {creator?.name || 'Unknown Creator'}
                             </Link>
                             <div className="flex flex-wrap gap-2 mt-1">
                                 <Badge variant="default" className="capitalize">
                                     {post.service}
                                 </Badge>
-                                <Badge variant="outline" className="text-muted-foreground">
-                                    ID: {post.user}
-                                </Badge>
+                                {creator?.updated && (
+                                    <Badge variant="outline" className="text-muted-foreground">
+                                        Updated: {new Date(creator.updated * 1000).toLocaleDateString()}
+                                    </Badge>
+                                )}
                             </div>
                         </div>
                         <div className="text-right text-sm text-muted-foreground hidden md:block">
@@ -715,6 +725,136 @@ export default function Post() {
                     iconThumbnailsHidden: () => <PanelBottomClose className="h-5 w-5" />,
                 }}
             />
+
+            {/* More from this creator */}
+            <MoreFromCreator service={post.service} userId={post.user} currentPostId={post.id} creatorName={creator?.name} />
+
+            {/* Similar Creators */}
+            <SimilarCreators service={post.service} userId={post.user} />
+        </div>
+    );
+}
+
+// Component to show more posts from the same creator
+function MoreFromCreator({ service, userId, currentPostId, creatorName }: { 
+    service: string; 
+    userId: string; 
+    currentPostId: string;
+    creatorName?: string;
+}) {
+    const { data: rawData } = useSWR<any>(
+        service && userId ? getApiUrl(`/${service}/user/${userId}/posts?o=0`) : null,
+        fetcher
+    );
+    
+    const posts: KemonoPost[] | undefined = Array.isArray(rawData) ? rawData : rawData?.posts;
+    
+    // Filter out current post and limit to 6
+    const otherPosts = posts?.filter(p => p.id !== currentPostId).slice(0, 6);
+    
+    if (!otherPosts || otherPosts.length === 0) return null;
+    
+    return (
+        <Card>
+            <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect width="7" height="7" x="3" y="3" rx="1" />
+                        <rect width="7" height="7" x="14" y="3" rx="1" />
+                        <rect width="7" height="7" x="14" y="14" rx="1" />
+                        <rect width="7" height="7" x="3" y="14" rx="1" />
+                    </svg>
+                    More from {creatorName || 'this creator'}
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {otherPosts.map(post => (
+                        <MiniPostCard key={post.id} post={post} />
+                    ))}
+                </div>
+                <div className="mt-4 text-center">
+                    <Link to={`/creator/${service}/${userId}`}>
+                        <Button variant="outline" size="sm">
+                            View all posts →
+                        </Button>
+                    </Link>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+// Component to show posts from similar/recommended creators
+function SimilarCreators({ service, userId }: { service: string; userId: string }) {
+    const { data: recommended } = useSWR<KemonoRecommendedCreator[]>(
+        service && userId ? getApiUrl(`/${service}/user/${userId}/recommended`) : null,
+        fetcher
+    );
+
+    // Get top 3 similar creators
+    const topCreators = recommended?.slice(0, 3) || [];
+
+    if (topCreators.length === 0) return null;
+
+    return (
+        <Card>
+            <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    From Similar Creators
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                {topCreators.map(creator => (
+                    <SimilarCreatorPosts key={`${creator.service}-${creator.id}`} creator={creator} />
+                ))}
+            </CardContent>
+        </Card>
+    );
+}
+
+// Posts from a single similar creator
+function SimilarCreatorPosts({ creator }: { creator: KemonoRecommendedCreator }) {
+    const { data: rawData } = useSWR<any>(
+        creator.service && creator.id ? getApiUrl(`/${creator.service}/user/${creator.id}/posts?o=0`) : null,
+        fetcher
+    );
+    
+    const posts: KemonoPost[] | undefined = Array.isArray(rawData) ? rawData : rawData?.posts;
+    const topPosts = posts?.slice(0, 3);
+    
+    if (!topPosts || topPosts.length === 0) return null;
+    
+    return (
+        <div className="space-y-3">
+            <Link to={`/creator/${creator.service}/${creator.id}`} className="flex items-center gap-2 group">
+                <Avatar className="h-8 w-8">
+                    <AvatarImage
+                        src={`https://img.kemono.cr/icons/${creator.service}/${creator.id}`}
+                        alt={creator.name}
+                    />
+                    <AvatarFallback className="text-xs">
+                        {creator.name?.charAt(0).toUpperCase() || '?'}
+                    </AvatarFallback>
+                </Avatar>
+                <span className="font-medium text-sm group-hover:text-primary transition-colors">
+                    {creator.name}
+                </span>
+                <Badge variant="secondary" className="text-xs capitalize">
+                    {creator.service}
+                </Badge>
+            </Link>
+            <div className="grid grid-cols-3 gap-3">
+                {topPosts.map(post => (
+                    <MiniPostCard key={post.id} post={post} />
+                ))}
+            </div>
         </div>
     );
 }

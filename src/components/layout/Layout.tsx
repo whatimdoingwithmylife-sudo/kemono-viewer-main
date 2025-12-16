@@ -183,8 +183,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </main>
 
             <footer className="border-t py-6 bg-muted/30">
-                <div className="w-full max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
+                <div className="w-full max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground space-y-2">
                     <p>Kemono Viewer • Not affiliated with Kemono</p>
+                    <p className="text-xs">
+                        Built with React, Vite & shadcn/ui • 
+                        <a 
+                            href="https://github.com/whatimdoingwithmylife-sudo/kemono-viewer-main" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="hover:text-foreground transition-colors ml-1"
+                        >
+                            View on GitHub
+                        </a>
+                    </p>
                 </div>
             </footer>
         </div>
