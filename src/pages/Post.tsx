@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import useSWR from 'swr';
 import { fetcher, buildUrl, buildThumbnailUrl, getImageUrl, getApiUrl } from '@/lib/api';
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MiniPostCard } from '@/components/kemono/MiniPostCard';
+import { MiniPostCard, MiniPostCardSkeleton } from '@/components/kemono/MiniPostCard';
 import {
   Image as ImageIcon,
   ZoomIn,
@@ -27,14 +27,8 @@ import {
   PanelBottom,
   PanelBottomClose,
 } from 'lucide-react';
-import Lightbox from 'yet-another-react-lightbox';
-import Zoom from 'yet-another-react-lightbox/plugins/zoom';
-import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
-import Counter from 'yet-another-react-lightbox/plugins/counter';
-import DownloadPlugin from 'yet-another-react-lightbox/plugins/download';
-import 'yet-another-react-lightbox/styles.css';
-import 'yet-another-react-lightbox/plugins/thumbnails.css';
-import 'yet-another-react-lightbox/plugins/counter.css';
+import { LazyLightbox } from '@/components/kemono/LazyLightbox';
+import { DeferredSection } from '@/components/kemono/DeferredSection';
 
 // Image extensions for checking file types
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp'];
@@ -84,28 +78,56 @@ interface ImageDimensions {
     aspectRatio: number;
 }
 
-// Hook to load image dimensions
+// Module-level cache to persist dimensions across re-renders and component instances
+const dimensionCache = new Map<string, ImageDimensions>();
+// Track URLs currently being loaded to prevent duplicate requests
+const loadingUrls = new Set<string>();
+
+// Hook to load image dimensions with module-level caching
 function useImageDimensions(urls: string[]) {
-    const [dimensions, setDimensions] = useState<Record<string, ImageDimensions>>({});
+    const [dimensions, setDimensions] = useState<Record<string, ImageDimensions>>(() => {
+        // Initialize from cache for already-loaded URLs
+        const initial: Record<string, ImageDimensions> = {};
+        urls.forEach(url => {
+            const cached = dimensionCache.get(url);
+            if (cached) {
+                initial[url] = cached;
+            }
+        });
+        return initial;
+    });
 
     useEffect(() => {
-        urls.forEach(url => {
-            if (dimensions[url]) return;
+        // Only process URLs that aren't cached and aren't currently loading
+        const uncachedUrls = urls.filter(url => 
+            !dimensionCache.has(url) && !loadingUrls.has(url)
+        );
+
+        uncachedUrls.forEach(url => {
+            loadingUrls.add(url);
             
-            const img = new Image();
+            const img = new window.Image();
             img.onload = () => {
+                const dims: ImageDimensions = {
+                    width: img.naturalWidth,
+                    height: img.naturalHeight,
+                    aspectRatio: img.naturalWidth / img.naturalHeight
+                };
+                // Store in module-level cache
+                dimensionCache.set(url, dims);
+                loadingUrls.delete(url);
+                
                 setDimensions(prev => ({
                     ...prev,
-                    [url]: {
-                        width: img.naturalWidth,
-                        height: img.naturalHeight,
-                        aspectRatio: img.naturalWidth / img.naturalHeight
-                    }
+                    [url]: dims
                 }));
+            };
+            img.onerror = () => {
+                loadingUrls.delete(url);
             };
             img.src = url;
         });
-    }, [urls, dimensions]);
+    }, [urls]);
 
     return dimensions;
 }
@@ -157,10 +179,10 @@ function ImageGallery({
             </CardHeader>
             <CardContent>
                 <div 
-                    className="grid gap-3"
+                    className="grid gap-2 sm:gap-3"
                     style={{
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-                        gridAutoRows: '150px',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(min(120px, 45vw), 1fr))',
+                        gridAutoRows: 'minmax(100px, 150px)',
                         gridAutoFlow: 'dense'
                     }}
                 >
@@ -189,6 +211,7 @@ function ImageGallery({
                                     }`}
                                     onLoad={() => onImageLoad(idx)}
                                     loading="lazy"
+                                    decoding="async"
                                 />
                                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
                                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center gap-1">
@@ -225,12 +248,21 @@ export default function Post() {
         fetcher
     );
 
-    // Fetch creator info to get the name
-    const { data: creatorInfo } = useSWR<KemonoCreator[]>(
-        getApiUrl('/creators'),
-        fetcher
+    // Fetch specific creator info (optimized - fetches only this creator, not all)
+    const { data: creator } = useSWR<KemonoCreator>(
+        service && user ? getApiUrl(`/${service}/user/${user}/profile`) : null,
+        fetcher,
+        { 
+            // Don't fail the whole page if creator profile fails
+            onErrorRetry: (error, _key, _config, revalidate, { retryCount }) => {
+                // Don't retry on 404
+                if (error?.status === 404) return;
+                // Only retry up to 2 times
+                if (retryCount >= 2) return;
+                setTimeout(() => revalidate({ retryCount }), 1000);
+            }
+        }
     );
-    const creator = creatorInfo?.find(c => c.service === service && c.id === user);
 
     // Extract post and extended info from the response
     const post = rawData?.post;
@@ -306,20 +338,20 @@ export default function Post() {
 
     if (isLoading) {
         return (
-            <div className="max-w-5xl mx-auto space-y-6">
+            <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-2 sm:px-4">
                 <Card>
                     <CardHeader>
-                        <Skeleton className="h-10 w-3/4" />
+                        <Skeleton className="h-8 sm:h-10 w-3/4" />
                         <div className="flex gap-2 mt-2">
-                            <Skeleton className="h-6 w-20" />
-                            <Skeleton className="h-6 w-32" />
+                            <Skeleton className="h-5 sm:h-6 w-16 sm:w-20" />
+                            <Skeleton className="h-5 sm:h-6 w-24 sm:w-32" />
                         </div>
                     </CardHeader>
-                    <CardContent className="space-y-6">
-                        <Skeleton className="h-24 w-full" />
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <CardContent className="space-y-4 sm:space-y-6">
+                        <Skeleton className="h-16 sm:h-24 w-full" />
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
                             {[...Array(6)].map((_, i) => (
-                                <Skeleton key={i} className="aspect-square w-full" />
+                                <Skeleton key={i} className={`aspect-square w-full ${i >= 4 ? 'hidden sm:block' : ''}`} />
                             ))}
                         </div>
                     </CardContent>
@@ -355,36 +387,36 @@ export default function Post() {
     const mainFileIsAudio = hasValidPath(post.file?.path) && isAudioFile(post.file?.path);
 
     return (
-        <div className="max-w-5xl mx-auto space-y-8 px-4 py-6">
+        <div className="max-w-5xl mx-auto space-y-4 sm:space-y-8 px-2 sm:px-4 py-4 sm:py-6">
             {/* Header Card */}
             <Card className="overflow-hidden border-2">
                 <CardHeader className="pb-6">
                     {/* Creator Info Row */}
-                    <div className="flex items-center gap-4 mb-6">
+                    <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
                         <Link to={`/creator/${post.service}/${post.user}`}>
-                            <Avatar className="h-14 w-14 ring-2 ring-primary/20 hover:ring-primary/50 transition-all">
+                            <Avatar className="h-10 w-10 sm:h-14 sm:w-14 ring-2 ring-primary/20 hover:ring-primary/50 transition-all">
                                 <AvatarImage
                                     src={`https://img.kemono.cr/icons/${post.service}/${post.user}`}
                                     alt={creator?.name || 'Creator'}
                                 />
-                                <AvatarFallback className="text-lg font-bold bg-gradient-to-br from-primary/20 to-primary/5">
+                                <AvatarFallback className="text-sm sm:text-lg font-bold bg-gradient-to-br from-primary/20 to-primary/5">
                                     {creator?.name?.charAt(0).toUpperCase() || post.service.charAt(0).toUpperCase()}
                                 </AvatarFallback>
                             </Avatar>
                         </Link>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                             <Link
                                 to={`/creator/${post.service}/${post.user}`}
-                                className="font-semibold text-lg hover:text-primary transition-colors"
+                                className="font-semibold text-base sm:text-lg hover:text-primary transition-colors line-clamp-1"
                             >
                                 {creator?.name || 'Unknown Creator'}
                             </Link>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                                <Badge variant="default" className="capitalize">
+                            <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-1">
+                                <Badge variant="default" className="capitalize text-xs">
                                     {post.service}
                                 </Badge>
                                 {creator?.updated && (
-                                    <Badge variant="outline" className="text-muted-foreground">
+                                    <Badge variant="outline" className="text-muted-foreground text-xs hidden sm:inline-flex">
                                         Updated: {new Date(creator.updated * 1000).toLocaleDateString()}
                                     </Badge>
                                 )}
@@ -406,7 +438,7 @@ export default function Post() {
                     <Separator className="mb-4" />
 
                     {/* Post Title */}
-                    <CardTitle className="text-2xl md:text-3xl leading-tight">
+                    <CardTitle className="text-xl sm:text-2xl md:text-3xl leading-tight break-words">
                         {post.title || 'Untitled Post'}
                     </CardTitle>
 
@@ -657,8 +689,8 @@ export default function Post() {
                 </Card>
             )}
 
-            {/* Lightbox Viewer */}
-            <Lightbox
+            {/* Lightbox Viewer - Lazy loaded for performance */}
+            <LazyLightbox
                 open={lightboxOpen}
                 close={() => setLightboxOpen(false)}
                 index={lightboxIndex}
@@ -680,7 +712,6 @@ export default function Post() {
                     });
                     return slides;
                 })()}
-                plugins={[Zoom, Thumbnails, Counter, DownloadPlugin]}
                 zoom={{
                     maxZoomPixelRatio: 5,
                     zoomInMultiplier: 2,
@@ -726,31 +757,99 @@ export default function Post() {
                 }}
             />
 
-            {/* More from this creator */}
-            <MoreFromCreator service={post.service} userId={post.user} currentPostId={post.id} creatorName={creator?.name} />
+            {/* More from this creator - Deferred until scrolled into view */}
+            <DeferredSection
+                fallback={
+                    <Card>
+                        <CardHeader className="pb-4">
+                            <Skeleton className="h-6 w-40 sm:w-48" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+                                {[...Array(4)].map((_, i) => (
+                                    <Skeleton key={i} className={`aspect-video w-full rounded-lg ${i >= 2 ? 'hidden sm:block' : ''}`} />
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                }
+            >
+                <MoreFromCreator service={post.service} userId={post.user} currentPostId={post.id} creatorName={creator?.name} />
+            </DeferredSection>
 
-            {/* Similar Creators */}
-            <SimilarCreators service={post.service} userId={post.user} />
+            {/* Similar Creators - Deferred until scrolled into view */}
+            <DeferredSection
+                fallback={
+                    <Card>
+                        <CardHeader className="pb-4">
+                            <Skeleton className="h-6 w-40 sm:w-48" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                {[...Array(2)].map((_, i) => (
+                                    <div key={i} className="space-y-2">
+                                        <Skeleton className="h-8 w-28 sm:w-32" />
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                                            {[...Array(3)].map((_, j) => (
+                                                <Skeleton key={j} className={`aspect-video w-full rounded-lg ${j >= 2 ? 'hidden sm:block' : ''}`} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                }
+            >
+                <SimilarCreators service={post.service} userId={post.user} />
+            </DeferredSection>
         </div>
     );
 }
 
 // Component to show more posts from the same creator
-function MoreFromCreator({ service, userId, currentPostId, creatorName }: { 
+const MoreFromCreator = memo(function MoreFromCreator({ service, userId, currentPostId, creatorName }: { 
     service: string; 
     userId: string; 
     currentPostId: string;
     creatorName?: string;
 }) {
-    const { data: rawData } = useSWR<any>(
+    const { data: rawData, isLoading } = useSWR<any>(
         service && userId ? getApiUrl(`/${service}/user/${userId}/posts?o=0`) : null,
-        fetcher
+        fetcher,
+        { revalidateOnFocus: false }
     );
     
     const posts: KemonoPost[] | undefined = Array.isArray(rawData) ? rawData : rawData?.posts;
     
     // Filter out current post and limit to 6
     const otherPosts = posts?.filter(p => p.id !== currentPostId).slice(0, 6);
+    
+    // Show skeleton while loading
+    if (isLoading) {
+        return (
+            <Card>
+                <CardHeader className="pb-4">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="7" height="7" x="3" y="3" rx="1" />
+                            <rect width="7" height="7" x="14" y="3" rx="1" />
+                            <rect width="7" height="7" x="14" y="14" rx="1" />
+                            <rect width="7" height="7" x="3" y="14" rx="1" />
+                        </svg>
+                        More from {creatorName || 'this creator'}
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+                        {[...Array(6)].map((_, idx) => (
+                            <MiniPostCardSkeleton key={idx} />
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
     
     if (!otherPosts || otherPosts.length === 0) return null;
     
@@ -768,7 +867,7 @@ function MoreFromCreator({ service, userId, currentPostId, creatorName }: {
                 </CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
                     {otherPosts.map(post => (
                         <MiniPostCard key={post.id} post={post} />
                     ))}
@@ -783,17 +882,18 @@ function MoreFromCreator({ service, userId, currentPostId, creatorName }: {
             </CardContent>
         </Card>
     );
-}
+});
 
 // Component to show posts from similar/recommended creators
 function SimilarCreators({ service, userId }: { service: string; userId: string }) {
     const { data: recommended } = useSWR<KemonoRecommendedCreator[]>(
         service && userId ? getApiUrl(`/${service}/user/${userId}/recommended`) : null,
-        fetcher
+        fetcher,
+        { revalidateOnFocus: false }
     );
 
-    // Get top 3 similar creators
-    const topCreators = recommended?.slice(0, 3) || [];
+    // Get top 4 similar creators
+    const topCreators = recommended?.slice(0, 4) || [];
 
     if (topCreators.length === 0) return null;
 
@@ -807,10 +907,10 @@ function SimilarCreators({ service, userId }: { service: string; userId: string 
                         <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                     </svg>
-                    From Similar Creators
+                    Similar Creators
                 </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
                 {topCreators.map(creator => (
                     <SimilarCreatorPosts key={`${creator.service}-${creator.id}`} creator={creator} />
                 ))}
@@ -819,42 +919,81 @@ function SimilarCreators({ service, userId }: { service: string; userId: string 
     );
 }
 
-// Posts from a single similar creator
-function SimilarCreatorPosts({ creator }: { creator: KemonoRecommendedCreator }) {
-    const { data: rawData } = useSWR<any>(
+// Posts from a single similar creator - memoized to prevent re-renders
+const SimilarCreatorPosts = memo(function SimilarCreatorPosts({ creator }: { creator: KemonoRecommendedCreator }) {
+    const { data: rawData, isLoading } = useSWR<any>(
         creator.service && creator.id ? getApiUrl(`/${creator.service}/user/${creator.id}/posts?o=0`) : null,
-        fetcher
+        fetcher,
+        { revalidateOnFocus: false } // Prevent refetch on window focus
     );
     
     const posts: KemonoPost[] | undefined = Array.isArray(rawData) ? rawData : rawData?.posts;
-    const topPosts = posts?.slice(0, 3);
+    const topPosts = posts?.slice(0, 4);
+    
+    // Show skeleton while loading
+    if (isLoading) {
+        return (
+            <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-3">
+                {/* Creator header skeleton */}
+                <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-5 w-16" />
+                    </div>
+                </div>
+                {/* Posts grid skeleton */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[...Array(4)].map((_, idx) => (
+                        <div key={idx} className={idx >= 2 ? 'hidden sm:block' : ''}>
+                            <MiniPostCardSkeleton />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
     
     if (!topPosts || topPosts.length === 0) return null;
     
     return (
-        <div className="space-y-3">
-            <Link to={`/creator/${creator.service}/${creator.id}`} className="flex items-center gap-2 group">
-                <Avatar className="h-8 w-8">
+        <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-3">
+            {/* Creator header */}
+            <Link 
+                to={`/creator/${creator.service}/${creator.id}`} 
+                className="flex items-center gap-3 group"
+            >
+                <Avatar className="h-10 w-10 ring-2 ring-primary/10 group-hover:ring-primary/30 transition-all">
                     <AvatarImage
                         src={`https://img.kemono.cr/icons/${creator.service}/${creator.id}`}
                         alt={creator.name}
+                        loading="lazy"
                     />
-                    <AvatarFallback className="text-xs">
+                    <AvatarFallback className="text-sm font-medium bg-gradient-to-br from-primary/20 to-primary/5">
                         {creator.name?.charAt(0).toUpperCase() || '?'}
                     </AvatarFallback>
                 </Avatar>
-                <span className="font-medium text-sm group-hover:text-primary transition-colors">
-                    {creator.name}
-                </span>
-                <Badge variant="secondary" className="text-xs capitalize">
-                    {creator.service}
-                </Badge>
+                <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">
+                        {creator.name}
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-xs capitalize">
+                            {creator.service}
+                        </Badge>
+                    </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
             </Link>
-            <div className="grid grid-cols-3 gap-3">
-                {topPosts.map(post => (
-                    <MiniPostCard key={post.id} post={post} />
+            
+            {/* Posts grid - responsive */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {topPosts.map((post, idx) => (
+                    <div key={post.id} className={idx >= 2 ? 'hidden sm:block' : ''}>
+                        <MiniPostCard post={post} />
+                    </div>
                 ))}
             </div>
         </div>
     );
-}
+});

@@ -23,6 +23,9 @@ import { PostGrid } from '@/components/kemono/PostGrid';
 import { usePostFilters } from '@/hooks/usePostFilters';
 import { FavouriteButton } from '@/components/kemono/FavouriteButton';
 import { useFavourites } from '@/hooks/useFavourites';
+import { useDynamicLoading } from '@/hooks/useDynamicLoading';
+import { useSettings } from '@/hooks/useSettings';
+import { Spinner } from '@/components/ui/spinner';
 
 const POSTS_PER_PAGE = 50;
 
@@ -48,13 +51,33 @@ export default function Creator() {
     const { isFavourite, toggleFavourite } = useFavourites();
     const isCreatorFavourite = service && id ? isFavourite(service, id) : false;
 
-    const { data: rawData, error, isLoading } = useSWR<any>(
-        service && id ? getApiUrl(`/${service}/user/${id}/posts?o=${offset}`) : null,
+    const { settings } = useSettings();
+    const isDynamicEnabled = settings.dynamicLoadingEnabled;
+
+    // Dynamic loading hook
+    const dynamicState = useDynamicLoading({
+        service,
+        userId: id,
+        filters,
+        page,
+        enabled: isDynamicEnabled,
+        threshold: settings.dynamicLoadingThreshold,
+    });
+
+    // Fallback to standard SWR when dynamic loading is disabled
+    const { data: rawData, error: swrError, isLoading: swrLoading } = useSWR<any>(
+        !isDynamicEnabled && service && id ? getApiUrl(`/${service}/user/${id}/posts?o=${offset}`) : null,
         fetcher
     );
-    const posts: KemonoPost[] | undefined = Array.isArray(rawData) ? rawData : rawData?.posts;
+    const swrPosts: KemonoPost[] | undefined = Array.isArray(rawData) ? rawData : rawData?.posts;
+    const { filteredPosts: swrFilteredPosts, totalCount: swrTotalCount } = usePostFilters(swrPosts, filters);
 
-    const { filteredPosts, totalCount } = usePostFilters(posts, filters);
+    // Use dynamic or standard loading based on setting
+    const posts = isDynamicEnabled ? dynamicState.posts : swrPosts;
+    const filteredPosts = isDynamicEnabled ? dynamicState.filteredPosts : swrFilteredPosts;
+    const totalCount = isDynamicEnabled ? dynamicState.posts.length : swrTotalCount;
+    const isLoading = isDynamicEnabled ? dynamicState.isLoading : swrLoading;
+    const error = isDynamicEnabled ? dynamicState.error : swrError;
 
     const goToPage = (newPage: number) => {
         const params = new URLSearchParams(searchParams);
@@ -106,6 +129,19 @@ export default function Creator() {
                     <ViewToggle view={viewMode} onViewChange={handleViewChange} />
                 </div>
                 <ActiveFilters filters={filters} onFilterChange={setFilters} totalCount={totalCount} filteredCount={filteredPosts.length} />
+            
+            {/* Dynamic loading indicator */}
+            {isDynamicEnabled && dynamicState.isDynamicLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
+                    <Spinner className="h-4 w-4" />
+                    <span>Loading more pages... ({dynamicState.pagesLoaded} pages loaded, {dynamicState.totalFiltered} matches found)</span>
+                </div>
+            )}
+            {isDynamicEnabled && !dynamicState.isLoading && dynamicState.pagesLoaded > 1 && (
+                <div className="text-xs text-muted-foreground">
+                    Loaded {dynamicState.pagesLoaded} API pages to find {filteredPosts.length} matching posts
+                </div>
+            )}
             </div>
 
             <PostGrid
@@ -120,8 +156,17 @@ export default function Creator() {
                     <Button variant="outline" onClick={() => goToPage(page - 1)} disabled={page === 0}>
                         ← Previous
                     </Button>
-                    <span className="px-4 text-sm text-muted-foreground">Page {page + 1}</span>
-                    <Button variant="outline" onClick={() => goToPage(page + 1)} disabled={posts.length < POSTS_PER_PAGE}>
+                    <span className="px-4 text-sm text-muted-foreground">
+                        Page {page + 1}
+                        {isDynamicEnabled && dynamicState.pagesLoaded > 1 && (
+                            <span className="text-xs ml-1">(API pages {page + 1}-{page + dynamicState.pagesLoaded})</span>
+                        )}
+                    </span>
+                    <Button 
+                        variant="outline" 
+                        onClick={() => goToPage(page + dynamicState.pagesLoaded)} 
+                        disabled={!dynamicState.hasMore && isDynamicEnabled ? true : posts.length < POSTS_PER_PAGE}
+                    >
                         Next →
                     </Button>
                 </div>

@@ -50,10 +50,14 @@ export const CORS_PROXIES: CorsProxy[] = [
 
 export interface Settings {
     corsProxyId: string;
+    dynamicLoadingEnabled: boolean;
+    dynamicLoadingThreshold: number;
 }
 
 const defaultSettings: Settings = {
     corsProxyId: 'corsproxy-io',
+    dynamicLoadingEnabled: true,
+    dynamicLoadingThreshold: 49,
 };
 
 function loadSettings(): Settings {
