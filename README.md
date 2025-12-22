@@ -113,3 +113,7 @@ npm run build
 ## License
 
 MIT
+
+## Privacy
+
+This app includes optional anonymous analytics (powered by Userbird) to help improve the project. Analytics are **disabled by default** and must be explicitly enabled in Settings > Privacy. No personal information is collected - only basic page views and interactions. You can enable or disable this at any time.

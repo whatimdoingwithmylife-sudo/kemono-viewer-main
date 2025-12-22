@@ -52,12 +52,14 @@ export interface Settings {
     corsProxyId: string;
     dynamicLoadingEnabled: boolean;
     dynamicLoadingThreshold: number;
+    analyticsEnabled: boolean;
 }
 
 const defaultSettings: Settings = {
     corsProxyId: 'corsproxy-io',
     dynamicLoadingEnabled: true,
     dynamicLoadingThreshold: 49,
+    analyticsEnabled: false, // Opt-in by default for privacy
 };
 
 function loadSettings(): Settings {

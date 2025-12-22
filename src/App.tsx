@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation, useNavigationType } from 'react-router-dom';
 import { ThemeProvider } from "@/components/theme-provider"
+import { AnalyticsConsent } from '@/components/AnalyticsConsent';
 import Home from '@/pages/Home';
 import Creator from '@/pages/Creator';
 import Post from '@/pages/Post';
@@ -27,6 +28,7 @@ function ScrollToTop() {
 function App() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <AnalyticsConsent />
       <Router>
         <ScrollToTop />
         <Layout>

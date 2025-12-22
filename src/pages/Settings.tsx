@@ -112,6 +112,38 @@ export default function Settings() {
                     </div>
                 </CardContent>
             </Card>
+
+            <Card className="mt-6">
+                <CardHeader>
+                    <CardTitle>Privacy</CardTitle>
+                    <CardDescription>
+                        Control how your usage data is collected to help improve the app.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex items-center space-x-2">
+                        <Checkbox
+                            id="analytics"
+                            checked={settings.analyticsEnabled}
+                            onCheckedChange={(checked) => {
+                                setSettings({ analyticsEnabled: checked === true });
+                                // Reload to apply analytics change
+                                window.location.reload();
+                            }}
+                        />
+                        <Label htmlFor="analytics" className="cursor-pointer">
+                            Enable anonymous analytics
+                        </Label>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-muted/50 text-sm">
+                        <p className="text-muted-foreground">
+                            When enabled, anonymous usage data (page views, basic interactions) is collected to help improve the app. 
+                            No personal information is tracked. This is completely optional.
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }
