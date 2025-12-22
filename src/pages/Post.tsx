@@ -41,8 +41,9 @@ const isAudioFile = (path: string | undefined) => path ? AUDIO_EXTENSIONS.some(e
 const hasValidPath = (path: string | undefined) => path && path.trim().length > 0;
 
 // Format date from various formats (ISO string, timestamp, etc.)
-const formatDate = (dateValue: string | number | undefined): string => {
-    if (!dateValue) return 'Unknown date';
+const formatDate = (dateValue: string | number | undefined | null): string => {
+    // Handle null, undefined, empty string, or "0" values
+    if (!dateValue || dateValue === '0' || dateValue === 0) return 'Unknown date';
 
     try {
         let date: Date;
@@ -52,8 +53,14 @@ const formatDate = (dateValue: string | number | undefined): string => {
             // Check if it's in seconds or milliseconds
             date = new Date(dateValue > 9999999999 ? dateValue : dateValue * 1000);
         } else {
-            // Try parsing as ISO string or other string format
-            date = new Date(dateValue);
+            // Handle string that might be a numeric timestamp
+            const numValue = Number(dateValue);
+            if (!isNaN(numValue) && numValue > 0) {
+                date = new Date(numValue > 9999999999 ? numValue : numValue * 1000);
+            } else {
+                // Try parsing as ISO string or other string format
+                date = new Date(dateValue);
+            }
         }
 
         // Check if date is valid
