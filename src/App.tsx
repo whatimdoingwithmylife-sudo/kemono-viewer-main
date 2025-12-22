@@ -9,7 +9,7 @@ import Artists from '@/pages/Artists';
 import Favourites from '@/pages/Favourites';
 import Settings from '@/pages/Settings';
 import { Layout } from '@/components/layout/Layout';
-import { Toaster } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
 import { ProxyToast } from '@/components/kemono/ProxyToast';
 
 // Scroll to top on forward navigation, preserve on back

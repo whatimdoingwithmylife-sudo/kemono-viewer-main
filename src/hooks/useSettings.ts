@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const SETTINGS_KEY = 'kemono-viewer-settings';
 
@@ -47,6 +47,34 @@ export const CORS_PROXIES: CorsProxy[] = [
         description: 'Reliable and fast CORS proxy service',
     },
     {
+        id: 'yalies',
+        name: 'Yalies',
+        urlTemplate: 'https://cors.yalies.io/?url={url}',
+        requiresEncoding: true,
+        description: 'Keyless CORS proxy provided by Yalies',
+    },
+    {
+        id: 'thingproxy',
+        name: 'ThingProxy',
+        urlTemplate: 'https://thingproxy.freeboard.io/fetch/{url}',
+        requiresEncoding: true,
+        description: 'Simple and reliable proxy for fetching small resources',
+    },
+    {
+        id: 'cors-server',
+        name: 'CORS-Server',
+        urlTemplate: 'https://proxy-ibmasyzzya-uc.a.run.app/{url}',
+        requiresEncoding: true,
+        description: 'Community-run CORS proxy on Google Cloud Run',
+    },
+    {
+        id: 'html-driven',
+        name: 'HTML Driven',
+        urlTemplate: 'https://cors-proxy.htmldriven.com/?url={url}',
+        requiresEncoding: true,
+        description: 'Keyless CORS proxy for developers',
+    },
+    {
         id: 'none',
         name: 'None (Direct)',
         urlTemplate: '{url}',
@@ -87,6 +115,21 @@ function saveSettings(settings: Settings) {
 
 export function useSettings() {
     const [settings, setSettingsState] = useState<Settings>(loadSettings);
+
+    // Sync state when proxy is rotated from other sources (e.g. api.ts automatic rotation)
+    useEffect(() => {
+        const handleProxyRotation = (event: Event) => {
+            const customEvent = event as CustomEvent<{ proxy: CorsProxy; manual: boolean }>;
+            const nextID = customEvent.detail.proxy.id;
+            setSettingsState(prev => {
+                if (prev.corsProxyId === nextID) return prev;
+                return { ...prev, corsProxyId: nextID };
+            });
+        };
+
+        window.addEventListener('kemono-proxy-rotated', handleProxyRotation);
+        return () => window.removeEventListener('kemono-proxy-rotated', handleProxyRotation);
+    }, []);
 
     const setSettings = (newSettings: Partial<Settings>) => {
         setSettingsState(prev => {
