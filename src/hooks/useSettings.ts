@@ -40,18 +40,11 @@ export const CORS_PROXIES: CorsProxy[] = [
         description: 'Free CORS proxy by Codetabs',
     },
     {
-        id: 'x2u',
-        name: 'X2U',
-        urlTemplate: 'https://cors.x2u.in/?url={url}',
+        id: 'corsproxy-org',
+        name: 'Corsproxy.org',
+        urlTemplate: 'https://corsproxy.org/?url={url}',
         requiresEncoding: true,
-        description: 'Advanced CORS proxy with high availability',
-    },
-    {
-        id: 'thebugging',
-        name: 'Thebugging',
-        urlTemplate: 'https://www.thebugging.com/apis/cors-proxy?url={url}',
-        requiresEncoding: true,
-        description: 'Reliable CORS proxy with high compatibility',
+        description: 'Reliable and fast CORS proxy service',
     },
     {
         id: 'none',
@@ -117,6 +110,12 @@ export function useSettings() {
         const nextProxy = CORS_PROXIES[nextIndex];
         setSettings({ corsProxyId: nextProxy.id });
         console.log(`[Proxy] Switched to next proxy: ${nextProxy.name}`);
+
+        // Dispatch event for UI feedback
+        window.dispatchEvent(new CustomEvent('kemono-proxy-rotated', {
+            detail: { proxy: nextProxy, manual: true }
+        }));
+
         return nextProxy;
     };
 
@@ -146,6 +145,12 @@ export function rotateProxy(): CorsProxy {
     const nextProxy = CORS_PROXIES[nextIndex];
     saveSettings({ ...settings, corsProxyId: nextProxy.id });
     console.log(`[Proxy] Automatically rotated to: ${nextProxy.name}`);
+
+    // Dispatch event for UI feedback
+    window.dispatchEvent(new CustomEvent('kemono-proxy-rotated', {
+        detail: { proxy: nextProxy, manual: false }
+    }));
+
     return nextProxy;
 }
 

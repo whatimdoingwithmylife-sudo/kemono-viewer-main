@@ -30,7 +30,15 @@ export default function Settings() {
                         <Label htmlFor="cors-proxy">Proxy Service</Label>
                         <Select
                             value={settings.corsProxyId}
-                            onValueChange={(value) => setSettings({ corsProxyId: value })}
+                            onValueChange={(value) => {
+                                setSettings({ corsProxyId: value });
+                                const proxy = CORS_PROXIES.find(p => p.id === value);
+                                if (proxy) {
+                                    window.dispatchEvent(new CustomEvent('kemono-proxy-rotated', {
+                                        detail: { proxy, manual: true }
+                                    }));
+                                }
+                            }}
                         >
                             <SelectTrigger id="cors-proxy">
                                 <SelectValue placeholder="Select a proxy" />
