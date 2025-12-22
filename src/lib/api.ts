@@ -1,19 +1,16 @@
-import { buildProxiedUrl } from '@/hooks/useSettings';
+import { buildProxiedUrl, rotateProxy } from '@/hooks/useSettings';
 
 // Use Vite proxy in dev, CORS proxy in production (GitHub Pages)
 const isDev = import.meta.env.DEV;
 const KEMONO_BASE = 'https://kemono.cr';
 
-// Dynamic API URL getter - uses selected CORS proxy in production
+// Dynamic API URL getter - returns raw target URL
 export const getApiUrl = (endpoint: string): string => {
-    if (isDev) {
-        return `/api/v1${endpoint}`;
-    }
-    return buildProxiedUrl(`${KEMONO_BASE}/api/v1${endpoint}`);
+    return `${KEMONO_BASE}/api/v1${endpoint}`;
 };
 
-// Legacy export for backwards compatibility (base URL without endpoint)
-export const KEMONO_API_URL = isDev ? '/api/v1' : buildProxiedUrl(`${KEMONO_BASE}/api/v1`);
+// Legacy export for backwards compatibility
+export const KEMONO_API_URL = `${KEMONO_BASE}/api/v1`;
 
 // Rate limiting helper
 let lastRequestTime = 0;
@@ -22,6 +19,9 @@ const MIN_REQUEST_INTERVAL = 500; // Minimum 500ms between requests
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const fetcher = async (url: string, retries = 3): Promise<any> => {
+    // Resolve the actual URL to fetch (local in dev, proxied in prod)
+    const requestUrl = isDev ? url.replace(KEMONO_BASE, '') : buildProxiedUrl(url);
+
     // Enforce minimum interval between requests
     const now = Date.now();
     const timeSinceLastRequest = now - lastRequestTime;
@@ -31,7 +31,7 @@ export const fetcher = async (url: string, retries = 3): Promise<any> => {
     lastRequestTime = Date.now();
 
     try {
-        const res = await fetch(url, {
+        const res = await fetch(requestUrl, {
             headers: {
                 'Accept': 'text/css',
             }
@@ -40,8 +40,7 @@ export const fetcher = async (url: string, retries = 3): Promise<any> => {
         // Handle rate limiting (429)
         if (res.status === 429) {
             if (retries > 0) {
-                // Wait and retry with exponential backoff
-                const waitTime = (4 - retries) * 2000; // 2s, 4s, 6s
+                const waitTime = (4 - retries) * 2000;
                 console.log(`[API] Rate limited, waiting ${waitTime}ms before retry...`);
                 await delay(waitTime);
                 return fetcher(url, retries - 1);
@@ -51,7 +50,15 @@ export const fetcher = async (url: string, retries = 3): Promise<any> => {
             throw error;
         }
 
+        // Handle other proxy/CORS errors that might be recoverable by switching proxy
         if (!res.ok) {
+            // Some proxies return 403, 404, or 5xx when they are dead or blocked
+            if (retries > 0 && !isDev && (res.status === 403 || res.status === 404 || res.status >= 500)) {
+                console.log(`[API] Fetch failed with status ${res.status}, rotating proxy...`);
+                rotateProxy();
+                return fetcher(url, retries - 1);
+            }
+
             const error = new Error('An error occurred while fetching the data.');
             try {
                 (error as any).info = await res.json();
@@ -64,9 +71,15 @@ export const fetcher = async (url: string, retries = 3): Promise<any> => {
 
         return res.json();
     } catch (err: any) {
+        // Network error - often happens when a proxy is down/dead (CORS issues)
+        if (retries > 0 && !isDev && !err.status) {
+            console.log('[API] Network error, rotating proxy...');
+            rotateProxy();
+            return fetcher(url, retries - 1);
+        }
+
         if (err.status) throw err; // Re-throw API errors
 
-        // Network error
         const error = new Error('Network error. Please check your connection.');
         (error as any).status = 0;
         throw error;

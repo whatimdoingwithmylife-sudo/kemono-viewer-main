@@ -22,7 +22,7 @@ export default function Settings() {
                 <CardHeader>
                     <CardTitle>CORS Proxy</CardTitle>
                     <CardDescription>
-                        Select a CORS proxy to use for API requests. If one proxy isn't working, try another.
+                        Select a CORS proxy to use for API requests. The system will automatically try different proxies if the selected one fails.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -73,7 +73,7 @@ export default function Settings() {
                         <Checkbox
                             id="dynamic-loading"
                             checked={settings.dynamicLoadingEnabled}
-                            onCheckedChange={(checked) => 
+                            onCheckedChange={(checked) =>
                                 setSettings({ dynamicLoadingEnabled: checked === true })
                             }
                         />
@@ -106,7 +106,7 @@ export default function Settings() {
 
                     <div className="p-3 rounded-lg bg-muted/50 text-sm">
                         <p className="text-muted-foreground">
-                            When enabled, if your filters (e.g., "videos only") result in fewer than {settings.dynamicLoadingThreshold} posts, 
+                            When enabled, if your filters (e.g., "videos only") result in fewer than {settings.dynamicLoadingThreshold} posts,
                             the system will automatically fetch additional pages to find more matching content.
                         </p>
                     </div>
@@ -138,7 +138,7 @@ export default function Settings() {
 
                     <div className="p-3 rounded-lg bg-muted/50 text-sm">
                         <p className="text-muted-foreground">
-                            When enabled, anonymous usage data (page views, basic interactions) is collected to help improve the app. 
+                            When enabled, anonymous usage data (page views, basic interactions) is collected to help improve the app.
                             No personal information is tracked. This is completely optional.
                         </p>
                     </div>

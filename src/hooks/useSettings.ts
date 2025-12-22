@@ -33,11 +33,25 @@ export const CORS_PROXIES: CorsProxy[] = [
         description: 'Simple and reliable proxy service',
     },
     {
-        id: 'corsfix',
-        name: 'Corsfix',
-        urlTemplate: 'https://proxy.corsfix.com/?{url}',
+        id: 'codetabs',
+        name: 'Codetabs',
+        urlTemplate: 'https://api.codetabs.com/v1/proxy?quest={url}',
         requiresEncoding: true,
-        description: 'Modern CORS proxy, 60 req/min free tier',
+        description: 'Free CORS proxy by Codetabs',
+    },
+    {
+        id: 'x2u',
+        name: 'X2U',
+        urlTemplate: 'https://cors.x2u.in/?url={url}',
+        requiresEncoding: true,
+        description: 'Advanced CORS proxy with high availability',
+    },
+    {
+        id: 'thebugging',
+        name: 'Thebugging',
+        urlTemplate: 'https://www.thebugging.com/apis/cors-proxy?url={url}',
+        requiresEncoding: true,
+        description: 'Reliable CORS proxy with high compatibility',
     },
     {
         id: 'none',
@@ -93,10 +107,24 @@ export function useSettings() {
         return CORS_PROXIES.find(p => p.id === settings.corsProxyId) || CORS_PROXIES[0];
     };
 
+    const switchToNextProxy = () => {
+        const currentIndex = CORS_PROXIES.findIndex(p => p.id === settings.corsProxyId);
+        // Don't include 'none' in the rotation if possible, but if we are at the end, go back to 0
+        let nextIndex = (currentIndex + 1) % CORS_PROXIES.length;
+        if (CORS_PROXIES[nextIndex].id === 'none') {
+            nextIndex = (nextIndex + 1) % CORS_PROXIES.length;
+        }
+        const nextProxy = CORS_PROXIES[nextIndex];
+        setSettings({ corsProxyId: nextProxy.id });
+        console.log(`[Proxy] Switched to next proxy: ${nextProxy.name}`);
+        return nextProxy;
+    };
+
     return {
         settings,
         setSettings,
         getCorsProxy,
+        switchToNextProxy,
         corsProxies: CORS_PROXIES,
     };
 }
@@ -105,6 +133,20 @@ export function useSettings() {
 export function getCurrentCorsProxy(): CorsProxy {
     const settings = loadSettings();
     return CORS_PROXIES.find(p => p.id === settings.corsProxyId) || CORS_PROXIES[0];
+}
+
+// Standalone function to rotate to next proxy (for use in api.ts)
+export function rotateProxy(): CorsProxy {
+    const settings = loadSettings();
+    const currentIndex = CORS_PROXIES.findIndex(p => p.id === settings.corsProxyId);
+    let nextIndex = (currentIndex + 1) % CORS_PROXIES.length;
+    if (CORS_PROXIES[nextIndex].id === 'none') {
+        nextIndex = (nextIndex + 1) % CORS_PROXIES.length;
+    }
+    const nextProxy = CORS_PROXIES[nextIndex];
+    saveSettings({ ...settings, corsProxyId: nextProxy.id });
+    console.log(`[Proxy] Automatically rotated to: ${nextProxy.name}`);
+    return nextProxy;
 }
 
 export function buildProxiedUrl(targetUrl: string): string {
